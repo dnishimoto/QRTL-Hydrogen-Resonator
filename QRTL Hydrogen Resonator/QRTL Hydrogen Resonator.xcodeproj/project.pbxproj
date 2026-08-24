@@ -1,0 +1,583 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXContainerItemProxy section */
+		F71A5E2A303CCFB800533224 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F71A5E0F303CCFB700533224 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F71A5E16303CCFB700533224;
+			remoteInfo = "QRTL Hydrogen Resonator";
+		};
+		F71A5E34303CCFB800533224 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F71A5E0F303CCFB700533224 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F71A5E16303CCFB700533224;
+			remoteInfo = "QRTL Hydrogen Resonator";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		F71A5E17303CCFB700533224 /* QRTL Hydrogen Resonator.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "QRTL Hydrogen Resonator.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F71A5E29303CCFB800533224 /* QRTL Hydrogen ResonatorTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "QRTL Hydrogen ResonatorTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F71A5E33303CCFB800533224 /* QRTL Hydrogen ResonatorUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "QRTL Hydrogen ResonatorUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		F71A5E19303CCFB700533224 /* QRTL Hydrogen Resonator */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "QRTL Hydrogen Resonator";
+			sourceTree = "<group>";
+		};
+		F71A5E2C303CCFB800533224 /* QRTL Hydrogen ResonatorTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "QRTL Hydrogen ResonatorTests";
+			sourceTree = "<group>";
+		};
+		F71A5E36303CCFB800533224 /* QRTL Hydrogen ResonatorUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "QRTL Hydrogen ResonatorUITests";
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		F71A5E14303CCFB700533224 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F71A5E26303CCFB800533224 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F71A5E30303CCFB800533224 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		F71A5E0E303CCFB700533224 = {
+			isa = PBXGroup;
+			children = (
+				F71A5E19303CCFB700533224 /* QRTL Hydrogen Resonator */,
+				F71A5E2C303CCFB800533224 /* QRTL Hydrogen ResonatorTests */,
+				F71A5E36303CCFB800533224 /* QRTL Hydrogen ResonatorUITests */,
+				F71A5E18303CCFB700533224 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		F71A5E18303CCFB700533224 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F71A5E17303CCFB700533224 /* QRTL Hydrogen Resonator.app */,
+				F71A5E29303CCFB800533224 /* QRTL Hydrogen ResonatorTests.xctest */,
+				F71A5E33303CCFB800533224 /* QRTL Hydrogen ResonatorUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F71A5E16303CCFB700533224 /* QRTL Hydrogen Resonator */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F71A5E3D303CCFB800533224 /* Build configuration list for PBXNativeTarget "QRTL Hydrogen Resonator" */;
+			buildPhases = (
+				F71A5E13303CCFB700533224 /* Sources */,
+				F71A5E14303CCFB700533224 /* Frameworks */,
+				F71A5E15303CCFB700533224 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				F71A5E19303CCFB700533224 /* QRTL Hydrogen Resonator */,
+			);
+			name = "QRTL Hydrogen Resonator";
+			packageProductDependencies = (
+			);
+			productName = "QRTL Hydrogen Resonator";
+			productReference = F71A5E17303CCFB700533224 /* QRTL Hydrogen Resonator.app */;
+			productType = "com.apple.product-type.application";
+		};
+		F71A5E28303CCFB800533224 /* QRTL Hydrogen ResonatorTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F71A5E40303CCFB800533224 /* Build configuration list for PBXNativeTarget "QRTL Hydrogen ResonatorTests" */;
+			buildPhases = (
+				F71A5E25303CCFB800533224 /* Sources */,
+				F71A5E26303CCFB800533224 /* Frameworks */,
+				F71A5E27303CCFB800533224 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F71A5E2B303CCFB800533224 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				F71A5E2C303CCFB800533224 /* QRTL Hydrogen ResonatorTests */,
+			);
+			name = "QRTL Hydrogen ResonatorTests";
+			packageProductDependencies = (
+			);
+			productName = "QRTL Hydrogen ResonatorTests";
+			productReference = F71A5E29303CCFB800533224 /* QRTL Hydrogen ResonatorTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		F71A5E32303CCFB800533224 /* QRTL Hydrogen ResonatorUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F71A5E43303CCFB800533224 /* Build configuration list for PBXNativeTarget "QRTL Hydrogen ResonatorUITests" */;
+			buildPhases = (
+				F71A5E2F303CCFB800533224 /* Sources */,
+				F71A5E30303CCFB800533224 /* Frameworks */,
+				F71A5E31303CCFB800533224 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F71A5E35303CCFB800533224 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				F71A5E36303CCFB800533224 /* QRTL Hydrogen ResonatorUITests */,
+			);
+			name = "QRTL Hydrogen ResonatorUITests";
+			packageProductDependencies = (
+			);
+			productName = "QRTL Hydrogen ResonatorUITests";
+			productReference = F71A5E33303CCFB800533224 /* QRTL Hydrogen ResonatorUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F71A5E0F303CCFB700533224 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2660;
+				LastUpgradeCheck = 2660;
+				TargetAttributes = {
+					F71A5E16303CCFB700533224 = {
+						CreatedOnToolsVersion = 26.6;
+					};
+					F71A5E28303CCFB800533224 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = F71A5E16303CCFB700533224;
+					};
+					F71A5E32303CCFB800533224 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = F71A5E16303CCFB700533224;
+					};
+				};
+			};
+			buildConfigurationList = F71A5E12303CCFB700533224 /* Build configuration list for PBXProject "QRTL Hydrogen Resonator" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = F71A5E0E303CCFB700533224;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F71A5E18303CCFB700533224 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F71A5E16303CCFB700533224 /* QRTL Hydrogen Resonator */,
+				F71A5E28303CCFB800533224 /* QRTL Hydrogen ResonatorTests */,
+				F71A5E32303CCFB800533224 /* QRTL Hydrogen ResonatorUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F71A5E15303CCFB700533224 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F71A5E27303CCFB800533224 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F71A5E31303CCFB800533224 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F71A5E13303CCFB700533224 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F71A5E25303CCFB800533224 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F71A5E2F303CCFB800533224 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		F71A5E2B303CCFB800533224 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F71A5E16303CCFB700533224 /* QRTL Hydrogen Resonator */;
+			targetProxy = F71A5E2A303CCFB800533224 /* PBXContainerItemProxy */;
+		};
+		F71A5E35303CCFB800533224 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F71A5E16303CCFB700533224 /* QRTL Hydrogen Resonator */;
+			targetProxy = F71A5E34303CCFB800533224 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		F71A5E3B303CCFB800533224 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = D79GCWU2TB;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		F71A5E3C303CCFB800533224 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = D79GCWU2TB;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		F71A5E3E303CCFB800533224 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D79GCWU2TB;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "LIsten-Software-Solutions.QRTL-Hydrogen-Resonator";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F71A5E3F303CCFB800533224 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D79GCWU2TB;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "LIsten-Software-Solutions.QRTL-Hydrogen-Resonator";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		F71A5E41303CCFB800533224 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D79GCWU2TB;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "LIsten-Software-Solutions.QRTL-Hydrogen-ResonatorTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/QRTL Hydrogen Resonator.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/QRTL Hydrogen Resonator";
+			};
+			name = Debug;
+		};
+		F71A5E42303CCFB800533224 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D79GCWU2TB;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "LIsten-Software-Solutions.QRTL-Hydrogen-ResonatorTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/QRTL Hydrogen Resonator.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/QRTL Hydrogen Resonator";
+			};
+			name = Release;
+		};
+		F71A5E44303CCFB800533224 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D79GCWU2TB;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "LIsten-Software-Solutions.QRTL-Hydrogen-ResonatorUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "QRTL Hydrogen Resonator";
+			};
+			name = Debug;
+		};
+		F71A5E45303CCFB800533224 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D79GCWU2TB;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "LIsten-Software-Solutions.QRTL-Hydrogen-ResonatorUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "QRTL Hydrogen Resonator";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F71A5E12303CCFB700533224 /* Build configuration list for PBXProject "QRTL Hydrogen Resonator" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F71A5E3B303CCFB800533224 /* Debug */,
+				F71A5E3C303CCFB800533224 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F71A5E3D303CCFB800533224 /* Build configuration list for PBXNativeTarget "QRTL Hydrogen Resonator" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F71A5E3E303CCFB800533224 /* Debug */,
+				F71A5E3F303CCFB800533224 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F71A5E40303CCFB800533224 /* Build configuration list for PBXNativeTarget "QRTL Hydrogen ResonatorTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F71A5E41303CCFB800533224 /* Debug */,
+				F71A5E42303CCFB800533224 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F71A5E43303CCFB800533224 /* Build configuration list for PBXNativeTarget "QRTL Hydrogen ResonatorUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F71A5E44303CCFB800533224 /* Debug */,
+				F71A5E45303CCFB800533224 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = F71A5E0F303CCFB700533224 /* Project object */;
+}
