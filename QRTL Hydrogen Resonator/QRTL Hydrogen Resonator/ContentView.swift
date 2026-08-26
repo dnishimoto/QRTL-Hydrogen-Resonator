@@ -1,872 +1,619 @@
 //
 //  ContentView.swift
-//  QRTL Hydrogen Resonator
+//  QRTL-Hydrogen-Resonator
 //
-//  Created by David Nishimoto on 8/24/26.
+//  3D simulation of the proposed QRTL experimental pipeline:
+//  Power Meter -> Er:YAG 2.94 µm Laser -> Beam Conditioning ->
+//  High-Reflectivity Optical Cavity (standing wave) -> Interaction
+//  Chamber (water + Ca-40) -> Gas Separation (H2 / O2) -> Economics.
+//
+//  The QRTL coupling itself is treated as a testable hypothesis, not
+//  an established mechanism: the model only produces a nonlinear
+//  hydrogen response when (a) the cavity is on resonance and
+//  (b) Ca-40 is present in the chamber. Every other condition
+//  (off resonance, no Ca-40, laser off) yields the ordinary
+//  linear/near-zero baseline, mirroring the control structure in
+//  the spec.
 //
 
 import SwiftUI
-import CoreData
+import SceneKit
+import Combine
 
-// MARK: - Physical Constants
-let speedOfLight: Double = 299_792_458 // m/s
-let faradayConstant: Double = 96485.3329 // C/mol
-let avogadroNumber: Double = 6.02214076e23 // 1/mol
-let waterSplittingEnergy: Double = 237_000 // J/mol (approximate Gibbs free energy for water splitting)
-let waterMolarMass: Double = 18.01528 // g/mol
+// MARK: - MasterMonitor
 
-// MARK: - Hydrogen Resonator Simulator Struct
-struct HydrogenResonatorSimulator {
-    // Inputs
-    var laserWavelengthNm: Double     // nm
-    var laserPowerW: Double            // W
-    var cavityLengthCm: Double         // cm
-    var waterPathMm: Double            // mm
-    var operationTimeMin: Double       // minutes
-    
-    // Computed properties
-    var laserWavelengthM: Double {
-        laserWavelengthNm * 1e-9
+/// Central ObservableObject driving both the SceneKit scene and the
+/// SwiftUI HUD. All simulated quantities live here so the 3D view and
+/// the readouts panel stay in sync.
+final class MasterMonitor: ObservableObject {
+
+    // MARK: Operator controls
+
+    /// Laser output power in watts (electrical-to-optical, simplified).
+    @Published var laserPowerW: Double = 20.0 {
+        didSet { recompute() }
     }
-    
-    var cavityLengthM: Double {
-        cavityLengthCm * 1e-2
+
+    /// Cavity detuning, -1...1, where 0.0 is perfect resonance.
+    @Published var detuning: Double = 0.0 {
+        didSet { recompute() }
     }
-    
-    var waterPathM: Double {
-        waterPathMm * 1e-3
+
+    /// Whether the Ca-40 sample is loaded in the interaction chamber.
+    @Published var ca40Present: Bool = true {
+        didSet { recompute() }
     }
-    
-    var operationTimeS: Double {
-        operationTimeMin * 60
+
+    /// Whether the laser is energized at all (master control run).
+    @Published var laserOn: Bool = true {
+        didSet { recompute() }
     }
-    
-    // Calculate laser frequency (Hz)
-    var laserFrequencyHz: Double {
-        speedOfLight / laserWavelengthM
+
+    /// Effective cavity finesse (mirror quality). Higher = sharper,
+    /// taller resonance buildup.
+    @Published var cavityFinesse: Double = 180.0 {
+        didSet { recompute() }
     }
-    
-    // Assume absorption fraction based on water path length (simplified Beer-Lambert)
-    // Using an arbitrary absorption coefficient (m^-1) for demonstration
-    // For pure water in visible range, absorption coefficient is very small,
-    // but we assume a hypothetical value for the sake of calculation.
-    let absorptionCoefficient: Double = 0.1 // per meter
-    
-    var absorptionFraction: Double {
-        1 - exp(-absorptionCoefficient * waterPathM)
+
+    /// Non-electric operating cost assumption, $/kg H2 (purification,
+    /// compression, maintenance, depreciation, etc).
+    @Published var otherOperatingCostPerKg: Double = 10.0 {
+        didSet { recompute() }
     }
-    
-    // Absorbed power in Watts
-    var absorbedPowerW: Double {
-        laserPowerW * absorptionFraction
+
+    /// Assumed hydrogen selling price, $/kg.
+    @Published var sellPricePerKg: Double = 26.0 {
+        didSet { recompute() }
     }
-    
-    // Total energy input to system (J)
-    var inputEnergyJ: Double {
-        laserPowerW * operationTimeS
+
+    /// Electricity price, $/kWh.
+    let electricityPricePerKWh: Double = 0.184
+
+    // MARK: Derived / measured quantities (read-only outputs)
+
+    @Published private(set) var circulatingPowerW: Double = 0
+    @Published private(set) var buildupFactor: Double = 0
+    @Published private(set) var chamberTemperatureC: Double = 22.0
+    @Published private(set) var hydrogenRateGPerHr: Double = 0
+    @Published private(set) var wattHoursConsumed: Double = 0
+    @Published private(set) var kWhPerKgH2: Double = 0
+    @Published private(set) var electricityCostPerKg: Double = 0
+    @Published private(set) var totalCostPerKg: Double = 0
+    @Published private(set) var profitPerKg: Double = 0
+    @Published private(set) var isNonlinearRegime: Bool = false
+
+    /// 0...1 visual intensity used to drive the standing-wave nodes
+    /// and bubble emission rate in the SceneKit scene.
+    @Published private(set) var visualFieldIntensity: Double = 0
+
+    private var elapsedHours: Double = 0
+    private var timer: AnyCancellable?
+
+    init() {
+        recompute()
+        timer = Timer.publish(every: 1.0, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in self?.tick() }
     }
-    
-    // Total absorbed energy (J)
-    var absorbedEnergyJ: Double {
-        absorbedPowerW * operationTimeS
+
+    private func tick() {
+        elapsedHours += 1.0 / 3600.0
+        wattHoursConsumed += (laserOn ? laserPowerW : 0) * (1.0 / 3600.0)
+        recompute()
     }
-    
-    // Calculate moles of H2 produced based on absorbed energy and water splitting energy
-    // 2H2O + energy -> 2H2 + O2 means 2 moles H2O produce 2 moles H2
-    // Using Gibbs free energy requirement per mole water split, determine moles of H2 produced
-    // For simplicity, assume 100% conversion efficiency of absorbed energy to splitting
-    // In reality, efficiency is much lower; we'll calculate theoretical efficiency below.
-    var molesWaterSplitted: Double {
-        absorbedEnergyJ / waterSplittingEnergy
+
+    /// Recomputes every derived quantity from the current controls.
+    /// This encodes the spec's hypothesis-testing structure: a
+    /// Lorentzian cavity buildup around resonance, and a hydrogen
+    /// response that only turns nonlinear when the field is strong,
+    /// on resonance, AND Ca-40 is present. Every other combination
+    /// falls back to a small linear/thermal baseline.
+    private func recompute() {
+        // Lorentzian-style cavity buildup peaking at detuning == 0.
+        let x = 2.0 * cavityFinesse * detuning / .pi
+        buildupFactor = laserOn ? cavityFinesse / (1.0 + x * x) : 0
+        circulatingPowerW = laserPowerW * buildupFactor
+
+        // Simple absorption heating model (2.94 µm is strongly
+        // absorbed by water) -- rises with circulating power.
+        chamberTemperatureC = 22.0 + min(circulatingPowerW * 0.15, 60.0)
+
+        // Baseline (ordinary IR heating / thermal chemistry) response:
+        // small and strictly linear in circulating power.
+        let baselineRateGPerHr = circulatingPowerW * 0.002
+
+        // Proposed QRTL nonlinear channel: only active near resonance
+        // AND with Ca-40 present, and only above a threshold field.
+        let onResonance = abs(detuning) < 0.08
+        let threshold = 400.0 // watts, circulating
+        var qrtlRateGPerHr = 0.0
+        isNonlinearRegime = false
+        if ca40Present && onResonance && circulatingPowerW > threshold {
+            let excess = (circulatingPowerW - threshold) / threshold
+            qrtlRateGPerHr = 0.02 * pow(excess, 2.2) // nonlinear term
+            isNonlinearRegime = true
+        }
+
+        hydrogenRateGPerHr = baselineRateGPerHr + qrtlRateGPerHr
+        visualFieldIntensity = min(circulatingPowerW / 1200.0, 1.0)
+
+        // Economics
+        let gramsSoFar = hydrogenRateGPerHr * elapsedHours
+        if gramsSoFar > 0.0001 {
+            let kgSoFar = gramsSoFar / 1000.0
+            kWhPerKgH2 = (wattHoursConsumed / 1000.0) / kgSoFar
+        } else {
+            kWhPerKgH2 = 0
+        }
+        electricityCostPerKg = kWhPerKgH2 * electricityPricePerKWh
+        totalCostPerKg = electricityCostPerKg + otherOperatingCostPerKg
+        profitPerKg = sellPricePerKg - totalCostPerKg
     }
-    
-    var molesH2Produced: Double {
-        molesWaterSplitted // 1 mol H2O produces 1 mol H2 (actually 2 mol H2 per 2 mol H2O)
-    }
-    
-    var molesO2Produced: Double {
-        molesWaterSplitted / 2.0
-    }
-    
-    // Convert moles gas to volume (liters) at STP
-    // 1 mole gas = 22.414 L
-    let molarVolumeLiters: Double = 22.414
-    
-    var hydrogenVolumeL: Double {
-        molesH2Produced * molarVolumeLiters
-    }
-    
-    var oxygenVolumeL: Double {
-        molesO2Produced * molarVolumeLiters
-    }
-    
-    // Output energy stored in chemical bonds (J)
-    var outputEnergyJ: Double {
-        molesWaterSplitted * waterSplittingEnergy
-    }
-    
-    // Efficiency (output energy / input energy)
-    var efficiency: Double {
-        guard inputEnergyJ > 0 else { return 0 }
-        return outputEnergyJ / inputEnergyJ
+
+    func resetRun() {
+        elapsedHours = 0
+        wattHoursConsumed = 0
+        recompute()
     }
 }
 
-// MARK: - ContentView with Simulator UI and Mode Selection
+// MARK: - ContentView
+
 struct ContentView: View {
-    @Environment(\.managedObjectContext) private var viewContext
+    @StateObject private var monitor = MasterMonitor()
 
-    @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \Item.timestamp, ascending: true)],
-        animation: .default)
-    private var items: FetchedResults<Item>
-    
-    // Simulator input state variables
-    @State private var laserWavelengthNm: Double = 532 // green laser default nm
-    @State private var laserPowerW: Double = 1.0       // 1 Watt default
-    @State private var cavityLengthCm: Double = 10.0   // 10 cm default
-    @State private var waterPathMm: Double = 1.0       // 1 mm default
-    @State private var operationTimeMin: Double = 5.0  // 5 minutes default
-    
-    // Simulation mode state variable: "Optical Resonator" or "Electrolysis"
-    @State private var simulationMode: String = "Optical Resonator"
-    
-    // Computed results
-    @State private var simulationResult: HydrogenResonatorSimulator? = nil
-    
-    let simulationModes = ["Optical Resonator", "Electrolysis"]
-    
     var body: some View {
-        NavigationView {
-            VStack(spacing: 8) {
-                
-                // MARK: - Mode Selection Picker
-                Picker("Simulation Mode", selection: $simulationMode) {
-                    ForEach(simulationModes, id: \.self) { mode in
-                        Text(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                
-                // MARK: - 3D Visualization of the Resonator Setup with Mode
-                Resonator3DView(simulationResult: $simulationResult, simulationMode: $simulationMode)
-                    .frame(height: 260)
-                    .padding(.horizontal)
-                
-                // MARK: - Hydrogen Resonator Simulator/Input Section
-                Section(simulationMode == "Optical Resonator" ? "Optical Resonator Simulator" : "Electrolysis Simulator") {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Group {
-                            HStack {
-                                Text("Laser Wavelength (nm):")
-                                Spacer()
-                                TextField("", value: $laserWavelengthNm, formatter: NumberFormatter.decimal)
-                                    .frame(width: 80)
-                                    .textFieldStyle(.roundedBorder)
-                                    .keyboardType(.decimalPad)
-                                    .disabled(simulationMode == "Electrolysis") // Disable laser input in Electrolysis mode
-                                    .opacity(simulationMode == "Electrolysis" ? 0.5 : 1.0)
-                            }
-                            Slider(value: $laserWavelengthNm, in: 400...700, step: 1)
-                                .disabled(simulationMode == "Electrolysis")
-                                .opacity(simulationMode == "Electrolysis" ? 0.5 : 1.0)
-                        }
-                        
-                        Group {
-                            HStack {
-                                Text("Laser Power (W):")
-                                Spacer()
-                                TextField("", value: $laserPowerW, formatter: NumberFormatter.decimal)
-                                    .frame(width: 80)
-                                    .textFieldStyle(.roundedBorder)
-                                    .keyboardType(.decimalPad)
-                                    .disabled(simulationMode == "Electrolysis")
-                                    .opacity(simulationMode == "Electrolysis" ? 0.5 : 1.0)
-                            }
-                            Slider(value: $laserPowerW, in: 0.1...10, step: 0.1)
-                                .disabled(simulationMode == "Electrolysis")
-                                .opacity(simulationMode == "Electrolysis" ? 0.5 : 1.0)
-                        }
-                        
-                        Group {
-                            HStack {
-                                Text("Cavity Length (cm):")
-                                Spacer()
-                                TextField("", value: $cavityLengthCm, formatter: NumberFormatter.decimal)
-                                    .frame(width: 80)
-                                    .textFieldStyle(.roundedBorder)
-                                    .keyboardType(.decimalPad)
-                                    .disabled(simulationMode == "Electrolysis")
-                                    .opacity(simulationMode == "Electrolysis" ? 0.5 : 1.0)
-                            }
-                            Slider(value: $cavityLengthCm, in: 1...100, step: 1)
-                                .disabled(simulationMode == "Electrolysis")
-                                .opacity(simulationMode == "Electrolysis" ? 0.5 : 1.0)
-                        }
-                        
-                        Group {
-                            HStack {
-                                Text("Water Path (mm):")
-                                Spacer()
-                                TextField("", value: $waterPathMm, formatter: NumberFormatter.decimal)
-                                    .frame(width: 80)
-                                    .textFieldStyle(.roundedBorder)
-                                    .keyboardType(.decimalPad)
-                            }
-                            Slider(value: $waterPathMm, in: 0.1...10, step: 0.1)
-                        }
-                        
-                        Group {
-                            HStack {
-                                Text("Operation Time (min):")
-                                Spacer()
-                                Stepper(value: $operationTimeMin, in: 1...120, step: 1) {
-                                    Text("\(Int(operationTimeMin)) min")
-                                }
-                            }
-                        }
-                        
-                        Button("Compute Results") {
-                            simulationResult = HydrogenResonatorSimulator(
-                                laserWavelengthNm: laserWavelengthNm,
-                                laserPowerW: laserPowerW,
-                                cavityLengthCm: cavityLengthCm,
-                                waterPathMm: waterPathMm,
-                                operationTimeMin: operationTimeMin
-                            )
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .frame(maxWidth: .infinity)
-                    }
-                    .padding()
-                }
-                .background(Color(UIColor.secondarySystemBackground))
-                .cornerRadius(8)
-                .padding([.horizontal, .top])
-                
-                // MARK: - Simulation Results Display
-                if let result = simulationResult {
-                    Section("Simulation Results") {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Group {
-                                Text("Laser Frequency: \(result.laserFrequencyHz.formatted(.number.precision(.fractionLength(2)))) Hz")
-                                    .opacity(simulationMode == "Optical Resonator" ? 1 : 0.5)
-                                Text("Absorbed Power: \(result.absorbedPowerW.formatted(.number.precision(.fractionLength(3)))) W")
-                                
-                                // Only show gas output and efficiency for Electrolysis mode
-                                if simulationMode == "Electrolysis" {
-                                    Text("Estimated H₂ Gas Output: \(result.hydrogenVolumeL.formatted(.number.precision(.fractionLength(3)))) L")
-                                    Text("Estimated O₂ Gas Output: \(result.oxygenVolumeL.formatted(.number.precision(.fractionLength(3)))) L")
-                                    Text("Input Energy: \(result.inputEnergyJ.formatted(.number.precision(.fractionLength(1)))) J")
-                                    Text("Output Energy (Chemical): \(result.outputEnergyJ.formatted(.number.precision(.fractionLength(1)))) J")
-                                    Text("Efficiency: \((result.efficiency * 100).formatted(.number.precision(.fractionLength(2)))) %")
-                                } else {
-                                    // For Optical Resonator mode, note that no net hydrogen/oxygen is produced
-                                    Text("No net H₂/O₂ production in Optical Resonator mode.")
-                                        .italic()
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                        }
-                        .padding([.horizontal, .bottom])
-                    }
-                    .background(Color(UIColor.tertiarySystemBackground))
-                    .cornerRadius(8)
-                    .padding(.horizontal)
-                }
-                
-                // MARK: - Original List and Navigation
-                List {
-                    ForEach(items) { item in
-                        NavigationLink {
-                            Text("Item at \(item.timestamp!, formatter: itemFormatter)")
-                        } label: {
-                            Text(item.timestamp!, formatter: itemFormatter)
-                        }
-                    }
-                    .onDelete(perform: deleteItems)
-                }
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        EditButton()
-                    }
-                    ToolbarItem {
-                        Button(action: addItem) {
-                            Label("Add Item", systemImage: "plus")
-                        }
-                    }
-                }
-                Text("Select an item")
+        ZStack(alignment: .bottom) {
+            QRTLSceneView(monitor: monitor)
+                .ignoresSafeArea()
+
+            VStack(spacing: 12) {
+                readoutPanel
+                controlPanel
             }
-            .navigationTitle("QRTL Hydrogen Resonator")
+            .padding()
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+            .padding()
         }
     }
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(context: viewContext)
-            newItem.timestamp = Date()
+    private var readoutPanel: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("QRTL Hydrogen Resonator — Live Data")
+                .font(.headline)
 
-            do {
-                try viewContext.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
+            HStack {
+                readout("Laser", String(format: "%.0f W", monitor.laserPowerW))
+                readout("Circulating", String(format: "%.0f W", monitor.circulatingPowerW))
+                readout("Buildup", String(format: "×%.1f", monitor.buildupFactor))
+                readout("Chamber T", String(format: "%.1f°C", monitor.chamberTemperatureC))
+            }
+            HStack {
+                readout("H₂ Rate", String(format: "%.3f g/hr", monitor.hydrogenRateGPerHr))
+                readout("Energy", String(format: "%.1f kWh/kg", monitor.kWhPerKgH2))
+                readout("Elec. Cost", String(format: "$%.2f/kg", monitor.electricityCostPerKg))
+                readout("Profit", String(format: "$%.2f/kg", monitor.profitPerKg))
+                    .foregroundStyle(monitor.profitPerKg >= 0 ? .green : .red)
+            }
+            if monitor.isNonlinearRegime {
+                Text("⚡ Nonlinear QRTL regime detected (resonant + Ca-40)")
+                    .font(.caption)
+                    .foregroundStyle(.yellow)
+            } else {
+                Text("Baseline linear / thermal regime only")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
 
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            offsets.map { items[$0] }.forEach(viewContext.delete)
+    private func readout(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+            Text(value).font(.system(.body, design: .monospaced))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 
-            do {
-                try viewContext.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
+    private var controlPanel: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Text("Laser Power")
+                Slider(value: $monitor.laserPowerW, in: 0...50)
+                Text("\(Int(monitor.laserPowerW)) W").font(.caption).frame(width: 50)
+            }
+            HStack {
+                Text("Detuning")
+                Slider(value: $monitor.detuning, in: -1...1)
+                Text(String(format: "%.2f", monitor.detuning)).font(.caption).frame(width: 50)
+            }
+            HStack {
+                Text("Finesse")
+                Slider(value: $monitor.cavityFinesse, in: 20...300)
+                Text("\(Int(monitor.cavityFinesse))").font(.caption).frame(width: 50)
+            }
+            HStack {
+                Toggle("Laser On", isOn: $monitor.laserOn)
+                Toggle("Ca-40 Loaded", isOn: $monitor.ca40Present)
+                Button("Reset Run") { monitor.resetRun() }
+                    .buttonStyle(.bordered)
             }
         }
     }
 }
 
-// MARK: - NumberFormatter Extension for Decimal Input
-extension NumberFormatter {
-    static var decimal: NumberFormatter {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        return formatter
+// MARK: - SceneKit wrapper
+
+struct QRTLSceneView: UIViewRepresentable {
+    @ObservedObject var monitor: MasterMonitor
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(monitor: monitor)
+    }
+
+    func makeUIView(context: Context) -> SCNView {
+        let scnView = SCNView()
+        let scene = QRTLSceneBuilder.buildScene()
+        scnView.scene = scene
+        scnView.allowsCameraControl = true
+        scnView.autoenablesDefaultLighting = false
+        scnView.backgroundColor = UIColor(white: 0.04, alpha: 1.0)
+        scnView.delegate = context.coordinator
+        scnView.isPlaying = true
+        context.coordinator.attachNodes(from: scene)
+        return scnView
+    }
+
+    func updateUIView(_ uiView: SCNView, context: Context) {
+        context.coordinator.monitor = monitor
+    }
+
+    final class Coordinator: NSObject, SCNSceneRendererDelegate {
+        var monitor: MasterMonitor
+        weak var standingWaveNode: SCNNode?
+        var waveSegmentNodes: [SCNNode] = []
+        var beamNode: SCNNode?
+        var bubbleSystem: SCNParticleSystem?
+        var chamberGlowNode: SCNNode?
+        private var startTime: TimeInterval = 0
+
+        init(monitor: MasterMonitor) {
+            self.monitor = monitor
+        }
+
+        func attachNodes(from scene: SCNScene) {
+            standingWaveNode = scene.rootNode.childNode(withName: "standingWave", recursively: true)
+            waveSegmentNodes = standingWaveNode?.childNodes ?? []
+            beamNode = scene.rootNode.childNode(withName: "laserBeam", recursively: true)
+            chamberGlowNode = scene.rootNode.childNode(withName: "chamberGlow", recursively: true)
+            if let chamber = scene.rootNode.childNode(withName: "bubbleEmitter", recursively: true) {
+                bubbleSystem = chamber.particleSystems?.first
+            }
+        }
+
+        func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+            if startTime == 0 { startTime = time }
+            let t = time - startTime
+            let intensity = monitor.visualFieldIntensity
+            let nonlinear = monitor.isNonlinearRegime
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+
+                // Animate the standing wave amplitude with the field.
+                for (i, node) in self.waveSegmentNodes.enumerated() {
+                    let phase = Double(i) * 0.5
+                    let amplitude = 0.05 + 0.35 * intensity
+                    let y = sin(t * 6.0 + phase) * amplitude
+                    node.position.y = Float(y)
+                    let scale = Float(0.3 + 0.9 * intensity)
+                    node.scale = SCNVector3(scale, scale, scale)
+                }
+
+                // Pulse the laser beam emissive strength with power.
+                if let beam = self.beamNode {
+                    let pulse = 0.4 + 0.6 * abs(sin(t * 8.0))
+                    beam.geometry?.firstMaterial?.emission.intensity = CGFloat(intensity * pulse * 2.0)
+                    beam.opacity = monitor.laserOn ? CGFloat(0.3 + 0.7 * intensity) : 0.05
+                }
+
+                // Drive bubble production from hydrogen rate.
+                if let bubbles = self.bubbleSystem {
+                    let rate = Float(monitor.hydrogenRateGPerHr)
+                    bubbles.birthRate = CGFloat(min(max(rate * 400.0, 0), 4000))
+                    bubbles.particleColor = nonlinear
+                        ? UIColor.systemYellow
+                        : UIColor.systemTeal
+                }
+
+                // Chamber glow flags the nonlinear QRTL regime.
+                if let glow = self.chamberGlowNode {
+                    glow.light?.intensity = nonlinear ? CGFloat(1200 + 400 * sin(t * 4)) : 150
+                    glow.light?.color = nonlinear ? UIColor.yellow : UIColor.cyan
+                }
+            }
+        }
     }
 }
 
-// MARK: - Date Formatter for List Items
-private let itemFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateStyle = .short
-    formatter.timeStyle = .medium
-    return formatter
-}()
+// MARK: - Scene construction
 
-// MARK: - Resonator3DView: 3D Visualization and Overlay for Hydrogen Resonator (Dual Mode)
-// This view visually represents two distinct modes:
-// 1. Optical Resonator Mode: Shows laser, resonator cavity, water cell, and heat effects.
-//    Explains that absorbed energy becomes heat with no water splitting.
-// 2. Electrolysis Mode: Shows an electrolysis cell with membrane, electrodes, and gas collection.
-//    Displays gas production and power/current overlays relevant to electrolysis.
-struct Resonator3DView: View {
-    // Binding to the simulation result so the view updates dynamically
-    @Binding var simulationResult: HydrogenResonatorSimulator?
-    
-    // Simulation mode binding to switch visualizations
-    @Binding var simulationMode: String
-    
-    // Animation state for gas bubbles and heat effects
-    @State private var bubbleAnimation: Bool = false
-    @State private var heatAnimation: Bool = false
-    
-    // Constants for drawing sizes
-    private let laserBeamWidth: CGFloat = 10
-    private let cavityWidth: CGFloat = 160
-    private let cavityHeight: CGFloat = 100
-    private let mirrorThickness: CGFloat = 8
-    private let waterCellDiameter: CGFloat = 60
-    
-    var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                // Background gradient to simulate lab environment lighting
-                LinearGradient(colors: [Color.black.opacity(0.8), Color.gray.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    .cornerRadius(12)
-                
-                if simulationMode == "Optical Resonator" {
-                    opticalResonatorView(geo: geo)
-                } else if simulationMode == "Electrolysis" {
-                    electrolysisCellView(geo: geo)
-                }
-            }
-            .onAppear {
-                bubbleAnimation = true
-                heatAnimation = true
-            }
-            .onDisappear {
-                bubbleAnimation = false
-                heatAnimation = false
-            }
+enum QRTLSceneBuilder {
+
+    static func buildScene() -> SCNScene {
+        let scene = SCNScene()
+        let root = scene.rootNode
+
+        addLighting(to: root)
+        addCamera(to: root)
+        addGroundPlatform(to: root)
+
+        // Layout along the X axis, matching the pipeline order.
+        addPowerMeter(to: root, at: SCNVector3(-9, 0.5, 0))
+        addLaserModule(to: root, at: SCNVector3(-6.5, 0.5, 0))
+        addBeamConditioning(to: root, at: SCNVector3(-4.5, 0.5, 0))
+        addLaserBeam(to: root, from: SCNVector3(-4.0, 0.5, 0), to: SCNVector3(-2.2, 0.5, 0))
+        addOpticalCavity(to: root, at: SCNVector3(-1.0, 0.5, 0))
+        addInteractionChamber(to: root, at: SCNVector3(2.0, 0.5, 0))
+        addGasSeparation(to: root, at: SCNVector3(5.0, 0.5, 0))
+        addConnectingRail(to: root, fromX: -9.5, toX: 6.5, y: 0.05)
+        addLabel(to: root, text: "QRTL Hydrogen Resonator", at: SCNVector3(-2, 3.2, 0))
+
+        return scene
+    }
+
+    // MARK: Environment
+
+    private static func addLighting(to root: SCNNode) {
+        let ambient = SCNNode()
+        ambient.light = SCNLight()
+        ambient.light?.type = .ambient
+        ambient.light?.intensity = 250
+        ambient.light?.color = UIColor(white: 0.6, alpha: 1.0)
+        root.addChildNode(ambient)
+
+        let key = SCNNode()
+        key.light = SCNLight()
+        key.light?.type = .directional
+        key.light?.intensity = 800
+        key.position = SCNVector3(0, 10, 8)
+        key.eulerAngles = SCNVector3(-Float.pi / 3, 0, 0)
+        root.addChildNode(key)
+    }
+
+    private static func addCamera(to root: SCNNode) {
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.camera?.zFar = 100
+        cameraNode.position = SCNVector3(-2, 5, 12)
+        cameraNode.eulerAngles = SCNVector3(-0.3, 0, 0)
+        root.addChildNode(cameraNode)
+    }
+
+    private static func addGroundPlatform(to root: SCNNode) {
+        let floor = SCNFloor()
+        floor.reflectivity = 0.05
+        let floorMat = SCNMaterial()
+        floorMat.diffuse.contents = UIColor(white: 0.08, alpha: 1.0)
+        floor.materials = [floorMat]
+        let floorNode = SCNNode(geometry: floor)
+        root.addChildNode(floorNode)
+    }
+
+    private static func addLabel(to root: SCNNode, text: String, at position: SCNVector3) {
+        let textGeo = SCNText(string: text, extrusionDepth: 0.2)
+        textGeo.font = UIFont.boldSystemFont(ofSize: 6)
+        textGeo.firstMaterial?.diffuse.contents = UIColor.white
+        let node = SCNNode(geometry: textGeo)
+        node.scale = SCNVector3(0.05, 0.05, 0.05)
+        node.position = position
+        root.addChildNode(node)
+    }
+
+    private static func addConnectingRail(to root: SCNNode, fromX: Float, toX: Float, y: Float) {
+        let length = CGFloat(toX - fromX)
+        let rail = SCNBox(width: length, height: 0.05, length: 0.15, chamferRadius: 0.02)
+        rail.firstMaterial?.diffuse.contents = UIColor.darkGray
+        let node = SCNNode(geometry: rail)
+        node.position = SCNVector3((fromX + toX) / 2, y, 0)
+        root.addChildNode(node)
+    }
+
+    // MARK: Stage 1 — Power meter
+
+    private static func addPowerMeter(to root: SCNNode, at position: SCNVector3) {
+        let body = SCNBox(width: 1.2, height: 1.6, length: 0.8, chamferRadius: 0.05)
+        body.firstMaterial?.diffuse.contents = UIColor(white: 0.2, alpha: 1.0)
+        let node = SCNNode(geometry: body)
+        node.position = position
+
+        let dial = SCNCylinder(radius: 0.35, height: 0.05)
+        dial.firstMaterial?.diffuse.contents = UIColor.black
+        dial.firstMaterial?.emission.contents = UIColor.green
+        let dialNode = SCNNode(geometry: dial)
+        dialNode.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)
+        dialNode.position = SCNVector3(0, 0.3, 0.45)
+        node.addChildNode(dialNode)
+
+        root.addChildNode(node)
+        addLabel(to: root, text: "Power Meter", at: SCNVector3(position.x - 0.7, position.y + 1.2, position.z))
+    }
+
+    // MARK: Stage 2 — Laser + driver/cooling
+
+    private static func addLaserModule(to root: SCNNode, at position: SCNVector3) {
+        let housing = SCNBox(width: 1.8, height: 1.0, length: 1.0, chamferRadius: 0.08)
+        housing.firstMaterial?.diffuse.contents = UIColor(red: 0.15, green: 0.15, blue: 0.2, alpha: 1)
+        let node = SCNNode(geometry: housing)
+        node.position = position
+
+        // Cooling fins
+        for i in 0..<4 {
+            let fin = SCNBox(width: 0.05, height: 0.9, length: 0.9, chamferRadius: 0)
+            fin.firstMaterial?.diffuse.contents = UIColor.lightGray
+            let finNode = SCNNode(geometry: fin)
+            finNode.position = SCNVector3(-0.9 + Float(i) * 0.06, 0, 0)
+            node.addChildNode(finNode)
+        }
+
+        // Emission aperture
+        let aperture = SCNCylinder(radius: 0.08, height: 0.05)
+        aperture.firstMaterial?.diffuse.contents = UIColor.red
+        aperture.firstMaterial?.emission.contents = UIColor.red
+        let apertureNode = SCNNode(geometry: aperture)
+        apertureNode.eulerAngles = SCNVector3(0, 0, Float.pi / 2)
+        apertureNode.position = SCNVector3(0.95, 0, 0)
+        node.addChildNode(apertureNode)
+
+        root.addChildNode(node)
+        addLabel(to: root, text: "Er:YAG 2.94µm", at: SCNVector3(position.x - 0.9, position.y + 1.0, position.z))
+    }
+
+    // MARK: Stage 3 — Beam conditioning optics
+
+    private static func addBeamConditioning(to root: SCNNode, at position: SCNVector3) {
+        for (i, r) in [0.22, 0.16].enumerated() {
+            let lens = SCNCylinder(radius: r, height: 0.04)
+            lens.firstMaterial?.diffuse.contents = UIColor.cyan.withAlphaComponent(0.5)
+            lens.firstMaterial?.transparency = 0.6
+            let node = SCNNode(geometry: lens)
+            node.eulerAngles = SCNVector3(0, 0, Float.pi / 2)
+            node.position = SCNVector3(position.x + Float(i) * 0.5, position.y, position.z)
+            root.addChildNode(node)
         }
     }
-    
-    // MARK: - Optical Resonator Mode Visualization
-    @ViewBuilder
-    private func opticalResonatorView(geo: GeometryProxy) -> some View {
-        ZStack {
-            // MARK: - Cavity mirrors (front and back) as reflective planes
-            // Approximated by thin rounded rectangles with gradient to simulate reflection
-            Group {
-                // Left mirror with label "Mirror 1"
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [Color.white.opacity(0.6), Color.gray.opacity(0.3), Color.white.opacity(0.6)]),
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .frame(width: mirrorThickness, height: cavityHeight)
-                    .shadow(color: .white.opacity(0.3), radius: 4)
-                    .offset(x: -cavityWidth / 2)
-                    .overlay(
-                        Text("Mirror 1")
-                            .font(.caption2.monospaced())
-                            .foregroundColor(.white.opacity(0.8))
-                            .rotationEffect(.degrees(-90))
-                            .offset(x: -mirrorThickness/2 - 12, y: 0)
-                    )
-                
-                // Right mirror with label "Mirror 2"
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [Color.white.opacity(0.6), Color.gray.opacity(0.3), Color.white.opacity(0.6)]),
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .frame(width: mirrorThickness, height: cavityHeight)
-                    .shadow(color: .white.opacity(0.3), radius: 4)
-                    .offset(x: cavityWidth / 2)
-                    .overlay(
-                        Text("Mirror 2")
-                            .font(.caption2.monospaced())
-                            .foregroundColor(.white.opacity(0.8))
-                            .rotationEffect(.degrees(90))
-                            .offset(x: mirrorThickness/2 + 12, y: 0)
-                    )
-            }
-            
-            // MARK: - Water cell as translucent blue cylinder (approximated by ellipse with gradient)
-            ZStack {
-                Ellipse()
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [Color.blue.opacity(0.4), Color.blue.opacity(0.1)]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: waterCellDiameter, height: cavityHeight * 0.8)
-                    .overlay(
-                        Ellipse()
-                            .stroke(Color.blue.opacity(0.7), lineWidth: 2)
-                    )
-                    .shadow(color: Color.blue.opacity(0.4), radius: 4)
-                    .overlay(
-                        Text("Water Cell")
-                            .font(.caption2.monospaced())
-                            .foregroundColor(Color.blue.opacity(0.8))
-                            .offset(y: cavityHeight * 0.4)
-                    )
-            }
-            
-            // MARK: - Laser beam as a colored beam (green to red gradient based on wavelength)
-            // Approximate color wavelength between 400 nm (violet) to 700 nm (red)
-            let wavelength = simulationResult?.laserWavelengthNm ?? 532
-            let laserColor = wavelengthToRGB(wavelength: wavelength)
-            let beamOpacity = simulationResult != nil ? 0.7 : 0.0
-            
-            RoundedRectangle(cornerRadius: laserBeamWidth / 2)
-                .fill(
-                    LinearGradient(
-                        gradient: Gradient(colors: [laserColor.opacity(beamOpacity), laserColor.opacity(beamOpacity / 2)]),
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .frame(width: cavityWidth + mirrorThickness * 2, height: laserBeamWidth)
-                .offset(y: 0)
-                .shadow(color: laserColor.opacity(beamOpacity), radius: 8, x: 0, y: 0)
-                .blendMode(.screen)
-                .overlay(
-                    Text("Laser Beam")
-                        .font(.caption2.monospaced())
-                        .foregroundColor(laserColor.opacity(0.9))
-                        .offset(y: -laserBeamWidth * 2)
-                )
-            
-            // MARK: - Laser Driver and Optics (simplified rectangles and labels)
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.gray.opacity(0.6), lineWidth: 1)
-                .frame(width: 50, height: 30)
-                .position(x: geo.size.width/2 - (cavityWidth/2 + 60), y: geo.size.height/2)
-                .overlay(
-                    Text("Laser Driver")
-                        .font(.caption2.monospaced())
-                        .foregroundColor(.white.opacity(0.85))
-                )
-            
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.gray.opacity(0.6), lineWidth: 1)
-                .frame(width: 40, height: 40)
-                .position(x: geo.size.width/2 - (cavityWidth/2 + 15), y: geo.size.height/2)
-                .overlay(
-                    Text("Optics")
-                        .font(.caption2.monospaced())
-                        .foregroundColor(.white.opacity(0.85))
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                )
-            
-            // MARK: - Animated heat effect inside water cell to represent absorbed IR energy turning to heat
-            if let result = simulationResult {
-                let absorbedPower = result.absorbedPowerW
-                if absorbedPower > 0 {
-                    // Pulsating warm water color overlay
-                    Ellipse()
-                        .fill(
-                            RadialGradient(
-                                gradient: Gradient(colors: [
-                                    Color.red.opacity(0.1 + (heatAnimation ? 0.3 : 0.1)),
-                                    Color.orange.opacity(0.05),
-                                    Color.clear
-                                ]),
-                                center: .center,
-                                startRadius: 5,
-                                endRadius: waterCellDiameter
-                            )
-                        )
-                        .frame(width: waterCellDiameter, height: cavityHeight * 0.8)
-                        .shadow(color: Color.red.opacity(0.4), radius: 10)
-                        .animation(
-                            Animation.easeInOut(duration: 2).repeatForever(autoreverses: true),
-                            value: heatAnimation
-                        )
-                    
-                    // Small heat bubbles rising inside the water cell
-                    ForEach(0..<6, id: \.self) { index in
-                        Circle()
-                            .fill(Color.red.opacity(0.25))
-                            .frame(width: 6, height: 6)
-                            .position(
-                                x: geo.size.width/2 + CGFloat.random(in: -waterCellDiameter/4...waterCellDiameter/4),
-                                y: geo.size.height/2 + (heatAnimation ? -CGFloat(index * 20) : CGFloat(index * 20))
-                            )
-                            .animation(
-                                Animation.easeInOut(duration: Double(index + 1))
-                                    .repeatForever(autoreverses: true)
-                                    .delay(Double(index) * 0.3),
-                                value: heatAnimation
-                            )
-                    }
-                }
-            }
-            
-            // MARK: - Warning Overlay: No net hydrogen/oxygen production notice
-            VStack(alignment: .leading, spacing: 6) {
-                Text("⚠️ No net hydrogen/oxygen production")
-                    .font(.headline.monospaced())
-                    .foregroundColor(.yellow)
-                Text("Absorbed energy rapidly becomes heat — no water splitting occurs.")
-                    .font(.caption.monospaced())
-                    .foregroundColor(.white.opacity(0.85))
-            }
-            .padding(10)
-            .background(Color.black.opacity(0.75))
-            .cornerRadius(10)
-            .frame(maxWidth: 320)
-            .position(x: geo.size.width / 2, y: geo.size.height - 50)
-            
-            // MARK: - Educational Annotations for Optical Resonator Mode
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Optical Resonator Mode")
-                    .font(.title3.monospaced().bold())
-                    .foregroundColor(.white)
-                Text("""
-                • Laser light is confined between mirrors to increase interaction with water.
-                • Water absorbs infrared energy, which converts to thermal energy.
-                • No chemical water splitting occurs under these conditions.
-                • Energy dissipation is primarily as heat; hydrogen/oxygen not produced.
-                • Safety: Avoid overheating, handle lasers with care.
-                """)
-                    .font(.caption.monospaced())
-                    .foregroundColor(.white.opacity(0.9))
-            }
-            .padding(12)
-            .background(Color.black.opacity(0.6))
-            .cornerRadius(12)
-            .frame(maxWidth: 320)
-            .position(x: geo.size.width / 2, y: 40)
-        }
+
+    private static func addLaserBeam(to root: SCNNode, from: SCNVector3, to: SCNVector3) {
+        let length = CGFloat(to.x - from.x)
+        let beam = SCNCylinder(radius: 0.03, height: length)
+        beam.firstMaterial?.diffuse.contents = UIColor.red
+        beam.firstMaterial?.emission.contents = UIColor.red
+        let node = SCNNode(geometry: beam)
+        node.name = "laserBeam"
+        node.eulerAngles = SCNVector3(0, 0, Float.pi / 2)
+        node.position = SCNVector3((from.x + to.x) / 2, from.y, from.z)
+        root.addChildNode(node)
     }
-    
-    // MARK: - Electrolysis Mode Visualization
-    @ViewBuilder
-    private func electrolysisCellView(geo: GeometryProxy) -> some View {
-        ZStack {
-            // MARK: - Electrolysis cell body
-            RoundedRectangle(cornerRadius: 16)
-                .fill(
-                    LinearGradient(
-                        gradient: Gradient(colors: [Color.gray.opacity(0.8), Color.black.opacity(0.85)]),
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(width: cavityWidth * 1.3, height: cavityHeight * 1.1)
-                .shadow(color: .black.opacity(0.9), radius: 10)
-            
-            // MARK: - Membrane in center
-            Rectangle()
-                .fill(Color.white.opacity(0.4))
-                .frame(width: 6, height: cavityHeight * 0.9)
-                .position(x: geo.size.width/2, y: geo.size.height/2)
-                .overlay(
-                    Text("Membrane")
-                        .font(.caption2.monospaced())
-                        .foregroundColor(.white.opacity(0.85))
-                        .rotationEffect(.degrees(-90))
-                        .offset(y: -cavityHeight * 0.55)
-                )
-            
-            // MARK: - Electrodes (Anode and Cathode)
-            let electrodeWidth: CGFloat = 20
-            let electrodeHeight: CGFloat = cavityHeight * 0.9
-            
-            Rectangle()
-                .fill(Color.red.opacity(0.6))
-                .frame(width: electrodeWidth, height: electrodeHeight)
-                .position(x: geo.size.width/2 - (cavityWidth * 1.3)/2 + electrodeWidth/2 + 10, y: geo.size.height/2)
-                .overlay(
-                    Text("Anode (+)")
-                        .font(.caption2.monospaced())
-                        .foregroundColor(.white.opacity(0.85))
-                        .rotationEffect(.degrees(-90))
-                        .offset(y: -electrodeHeight / 2 - 12)
-                )
-            
-            Rectangle()
-                .fill(Color.blue.opacity(0.6))
-                .frame(width: electrodeWidth, height: electrodeHeight)
-                .position(x: geo.size.width/2 + (cavityWidth * 1.3)/2 - electrodeWidth/2 - 10, y: geo.size.height/2)
-                .overlay(
-                    Text("Cathode (-)")
-                        .font(.caption2.monospaced())
-                        .foregroundColor(.white.opacity(0.85))
-                        .rotationEffect(.degrees(-90))
-                        .offset(y: -electrodeHeight / 2 - 12)
-                )
-            
-            // MARK: - Gas collection chambers (H2 and O2)
-            let gasChamberWidth: CGFloat = 50
-            let gasChamberHeight: CGFloat = cavityHeight * 0.6
-            
-            // Hydrogen gas chamber (left)
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.green.opacity(0.8), lineWidth: 2)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.green.opacity(0.15)))
-                .frame(width: gasChamberWidth, height: gasChamberHeight)
-                .position(x: geo.size.width/2 - (cavityWidth * 1.3)/2 - gasChamberWidth/2 - 10, y: geo.size.height/2 + 10)
-                .overlay(
-                    VStack(spacing: 4) {
-                        Text("H₂ Gas")
-                            .font(.caption2.monospaced().bold())
-                            .foregroundColor(.green.opacity(0.85))
-                        if let result = simulationResult {
-                            Text("\(result.hydrogenVolumeL.formatted(.number.precision(.fractionLength(3)))) L")
-                                .font(.caption2.monospaced())
-                                .foregroundColor(.green.opacity(0.85))
-                        }
-                    }
-                    .padding(4)
-                )
-            
-            // Oxygen gas chamber (right)
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.blue.opacity(0.8), lineWidth: 2)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.blue.opacity(0.15)))
-                .frame(width: gasChamberWidth, height: gasChamberHeight)
-                .position(x: geo.size.width/2 + (cavityWidth * 1.3)/2 + gasChamberWidth/2 + 10, y: geo.size.height/2 + 10)
-                .overlay(
-                    VStack(spacing: 4) {
-                        Text("O₂ Gas")
-                            .font(.caption2.monospaced().bold())
-                            .foregroundColor(.blue.opacity(0.85))
-                        if let result = simulationResult {
-                            Text("\(result.oxygenVolumeL.formatted(.number.precision(.fractionLength(3)))) L")
-                                .font(.caption2.monospaced())
-                                .foregroundColor(.blue.opacity(0.85))
-                        }
-                    }
-                    .padding(4)
-                )
-            
-            // MARK: - Electrolysis Current and Power Overlay (bottom right)
-            if let result = simulationResult {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Input Power: \((result.laserPowerW).formatted(.number.precision(.fractionLength(3)))) W")
-                        .foregroundColor(.white.opacity(0.85))
-                        .font(.caption2.monospaced())
-                    
-                    // Calculate input current for electrolysis approximation (assume 3.3 V laser voltage for demonstration)
-                    let laserVoltage = 3.3
-                    let inputCurrent = result.laserPowerW / laserVoltage
-                    Text("Input Current: \(inputCurrent.formatted(.number.precision(.fractionLength(3)))) A")
-                        .foregroundColor(.white.opacity(0.85))
-                        .font(.caption2.monospaced())
-                    
-                    // Estimated output current if hydrogen converted back with fuel cell (1.23 V, 70% eff)
-                    let hydrogenEnergyPerSecond = result.outputEnergyJ / result.operationTimeS
-                    let fuelCellVoltage = 1.23
-                    let fuelCellEfficiency = 0.7
-                    let outputPower = hydrogenEnergyPerSecond * fuelCellEfficiency // Watts
-                    let outputCurrent = outputPower / fuelCellVoltage
-                    Text("Estimated Output Current: \(outputCurrent.formatted(.number.precision(.fractionLength(3)))) A")
-                        .foregroundColor(.yellow.opacity(0.85))
-                        .font(.caption2.monospaced())
-                }
-                .padding(8)
-                .background(Color.black.opacity(0.6))
-                .cornerRadius(8)
-                .frame(maxWidth: 220)
-                .position(x: geo.size.width - 120, y: geo.size.height - 50)
-            }
-            
-            // MARK: - Animated gas bubbles rising inside gas chambers
-            if let result = simulationResult {
-                // Operation time protected against zero
-                let operationTimeMin = result.operationTimeMin > 0 ? result.operationTimeMin : 1
-                let hydrogenRate = result.hydrogenVolumeL / operationTimeMin
-                let oxygenRate = result.oxygenVolumeL / operationTimeMin
-                
-                // Bubble count and max radius based on gas generation rates
-                let bubbleCountH2 = min(max(Int(hydrogenRate / 0.5), 1), 12)
-                let bubbleCountO2 = min(max(Int(oxygenRate / 0.5), 1), 8)
-                let maxBubbleRadius: CGFloat = 8
-                
-                // Hydrogen bubbles in left gas chamber
-                ForEach(0..<bubbleCountH2, id: \.self) { index in
-                    Circle()
-                        .fill(Color.green.opacity(0.6))
-                        .frame(width: bubbleRadius(index: index, count: bubbleCountH2, maxRadius: maxBubbleRadius),
-                               height: bubbleRadius(index: index, count: bubbleCountH2, maxRadius: maxBubbleRadius))
-                        .position(x: geo.size.width/2 - (cavityWidth * 1.3)/2 - 10,
-                                  y: geo.size.height/2 + 30 + (bubbleAnimation ? -CGFloat(index * 20) - 20 : CGFloat(index * 20) + 40))
-                        .animation(
-                            Animation.easeInOut(duration: Double.random(in: 1.5...3.0))
-                                .repeatForever(autoreverses: true)
-                                .delay(Double(index) * 0.1),
-                            value: bubbleAnimation
-                        )
-                }
-                
-                // Oxygen bubbles in right gas chamber
-                ForEach(0..<bubbleCountO2, id: \.self) { index in
-                    Circle()
-                        .fill(Color.blue.opacity(0.4))
-                        .frame(width: bubbleRadius(index: index, count: bubbleCountO2, maxRadius: maxBubbleRadius * 0.7),
-                               height: bubbleRadius(index: index, count: bubbleCountO2, maxRadius: maxBubbleRadius * 0.7))
-                        .position(x: geo.size.width/2 + (cavityWidth * 1.3)/2 + 10,
-                                  y: geo.size.height/2 + 30 + (bubbleAnimation ? -CGFloat(index * 25) - 30 : CGFloat(index * 25) + 50))
-                        .animation(
-                            Animation.easeInOut(duration: Double.random(in: 1.7...3.5))
-                                .repeatForever(autoreverses: true)
-                                .delay(Double(index) * 0.15),
-                            value: bubbleAnimation
-                        )
-                }
-            }
-            
-            // MARK: - Educational Annotations for Electrolysis Mode
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Electrolysis Mode")
-                    .font(.title3.monospaced().bold())
-                    .foregroundColor(.white)
-                Text("""
-                • Electrical energy splits water into hydrogen (H₂) and oxygen (O₂) gases.
-                • Anode (+) oxidizes water producing O₂, Cathode (-) reduces protons producing H₂.
-                • Ion-conducting membrane separates gases to prevent recombination.
-                • Gas bubbles collected in chambers represent produced gases.
-                • Safety: Handle gases carefully, ensure proper ventilation and electrical safety.
-                """)
-                    .font(.caption.monospaced())
-                    .foregroundColor(.white.opacity(0.9))
-            }
-            .padding(12)
-            .background(Color.black.opacity(0.6))
-            .cornerRadius(12)
-            .frame(maxWidth: 320)
-            .position(x: geo.size.width / 2, y: 40)
+
+    // MARK: Stage 4 — High-reflectivity optical cavity + standing wave
+
+    private static func addOpticalCavity(to root: SCNNode, at position: SCNVector3) {
+        // Two facing mirrors
+        for dx: Float in [-0.9, 0.9] {
+            let mirror = SCNCylinder(radius: 0.4, height: 0.06)
+            mirror.firstMaterial?.diffuse.contents = UIColor(white: 0.85, alpha: 1)
+            mirror.firstMaterial?.metalness.contents = 1.0
+            mirror.firstMaterial?.roughness.contents = 0.05
+            let node = SCNNode(geometry: mirror)
+            node.eulerAngles = SCNVector3(0, 0, Float.pi / 2)
+            node.position = SCNVector3(position.x + dx, position.y, position.z)
+            root.addChildNode(node)
         }
+
+        // Glass tube enclosing the cavity
+        let tube = SCNTube(innerRadius: 0.42, outerRadius: 0.45, height: 1.8)
+        tube.firstMaterial?.diffuse.contents = UIColor.white.withAlphaComponent(0.15)
+        tube.firstMaterial?.transparency = 0.3
+        let tubeNode = SCNNode(geometry: tube)
+        tubeNode.eulerAngles = SCNVector3(0, 0, Float.pi / 2)
+        tubeNode.position = position
+        root.addChildNode(tubeNode)
+
+        // Standing wave: a chain of small spheres whose Y offset is
+        // animated in the Coordinator to trace a sine profile.
+        let waveParent = SCNNode()
+        waveParent.name = "standingWave"
+        waveParent.position = position
+        let segments = 16
+        for i in 0..<segments {
+            let sphere = SCNSphere(radius: 0.05)
+            sphere.firstMaterial?.diffuse.contents = UIColor.orange
+            sphere.firstMaterial?.emission.contents = UIColor.orange
+            let node = SCNNode(geometry: sphere)
+            let xPos = -0.8 + (Float(i) / Float(segments - 1)) * 1.6
+            node.position = SCNVector3(xPos, 0, 0)
+            waveParent.addChildNode(node)
+        }
+        root.addChildNode(waveParent)
+
+        addLabel(to: root, text: "Optical Cavity", at: SCNVector3(position.x - 0.9, position.y + 1.0, position.z))
     }
-    
-    // Calculate bubble radius for index to create variety, smaller bubbles for higher index
-    private func bubbleRadius(index: Int, count: Int, maxRadius: CGFloat) -> CGFloat {
-        let base = maxRadius * (1 - CGFloat(index) / CGFloat(count + 1))
-        return max(3, base)
+
+    // MARK: Stage 5 — Interaction chamber (water + Ca-40)
+
+    private static func addInteractionChamber(to root: SCNNode, at position: SCNVector3) {
+        let tank = SCNBox(width: 1.4, height: 1.4, length: 1.4, chamferRadius: 0.05)
+        tank.firstMaterial?.diffuse.contents = UIColor.white.withAlphaComponent(0.12)
+        tank.firstMaterial?.transparency = 0.35
+        let tankNode = SCNNode(geometry: tank)
+        tankNode.position = position
+        root.addChildNode(tankNode)
+
+        // Water fill
+        let water = SCNBox(width: 1.3, height: 1.0, length: 1.3, chamferRadius: 0.03)
+        water.firstMaterial?.diffuse.contents = UIColor.systemBlue.withAlphaComponent(0.5)
+        water.firstMaterial?.transparency = 0.6
+        let waterNode = SCNNode(geometry: water)
+        waterNode.name = "bubbleEmitter"
+        waterNode.position = SCNVector3(position.x, position.y - 0.2, position.z)
+        tankNode.addChildNode(waterNode)
+
+        // Ca-40 pellet
+        let pellet = SCNSphere(radius: 0.12)
+        pellet.firstMaterial?.diffuse.contents = UIColor.lightGray
+        pellet.firstMaterial?.metalness.contents = 0.6
+        let pelletNode = SCNNode(geometry: pellet)
+        pelletNode.position = SCNVector3(0, -0.2, 0)
+        waterNode.addChildNode(pelletNode)
+
+        // Bubble particle system representing H2/O2 evolution
+        let bubbles = SCNParticleSystem()
+        bubbles.birthRate = 0
+        bubbles.particleLifeSpan = 1.2
+        bubbles.particleSize = 0.03
+        bubbles.particleColor = UIColor.systemTeal
+        bubbles.emitterShape = water
+        bubbles.birthDirection = .constant
+        bubbles.particleVelocity = 0.4
+        bubbles.particleVelocityVariation = 0.15
+        bubbles.acceleration = SCNVector3(0, 0.6, 0)
+        bubbles.blendMode = .additive
+        waterNode.addParticleSystem(bubbles)
+
+        // Glow light flags the nonlinear QRTL regime
+        let glow = SCNNode()
+        glow.light = SCNLight()
+        glow.light?.type = .omni
+        glow.light?.intensity = 150
+        glow.light?.color = UIColor.cyan
+        glow.name = "chamberGlow"
+        glow.position = SCNVector3(position.x, position.y, position.z)
+        root.addChildNode(glow)
+
+        addLabel(to: root, text: "Interaction Chamber (H₂O + Ca-40)", at: SCNVector3(position.x - 1.1, position.y + 1.1, position.z))
     }
-    
-    // Convert wavelength in nm to approximate RGB Color
-    // Algorithm adapted from common wavelength to RGB conversions
-    private func wavelengthToRGB(wavelength: Double) -> Color {
-        let wl = max(380, min(wavelength, 780))
-        var r: Double = 0
-        var g: Double = 0
-        var b: Double = 0
 
-        if wl >= 380 && wl < 440 {
-            r = -(wl - 440) / (440 - 380)
-            g = 0
-            b = 1
-        } else if wl >= 440 && wl < 490 {
-            r = 0
-            g = (wl - 440) / (490 - 440)
-            b = 1
-        } else if wl >= 490 && wl < 510 {
-            r = 0
-            g = 1
-            b = -(wl - 510) / (510 - 490)
-        } else if wl >= 510 && wl < 580 {
-            r = (wl - 510) / (580 - 510)
-            g = 1
-            b = 0
-        } else if wl >= 580 && wl < 645 {
-            r = 1
-            g = -(wl - 645) / (645 - 580)
-            b = 0
-        } else if wl >= 645 && wl <= 780 {
-            r = 1
-            g = 0
-            b = 0
-        }
+    // MARK: Stage 6 — Gas separation / collection
 
-        // Intensity correction
-        var factor: Double = 0
-        if wl >= 380 && wl < 420 {
-            factor = 0.3 + 0.7 * (wl - 380) / (420 - 380)
-        } else if wl >= 420 && wl < 701 {
-            factor = 1.0
-        } else if wl >= 701 && wl <= 780 {
-            factor = 0.3 + 0.7 * (780 - wl) / (780 - 700)
-        }
+    private static func addGasSeparation(to root: SCNNode, at position: SCNVector3) {
+        let h2Tube = SCNCylinder(radius: 0.25, height: 1.6)
+        h2Tube.firstMaterial?.diffuse.contents = UIColor.yellow.withAlphaComponent(0.3)
+        h2Tube.firstMaterial?.transparency = 0.5
+        let h2Node = SCNNode(geometry: h2Tube)
+        h2Node.position = SCNVector3(position.x, position.y + 0.4, position.z - 0.4)
+        root.addChildNode(h2Node)
 
-        // Apply factor and gamma correction
-        let gamma = 0.8
-        func adjust(_ color: Double) -> Double {
-            let c = color * factor
-            return pow(c, gamma)
-        }
+        let o2Tube = SCNCylinder(radius: 0.25, height: 1.6)
+        o2Tube.firstMaterial?.diffuse.contents = UIColor.systemBlue.withAlphaComponent(0.3)
+        o2Tube.firstMaterial?.transparency = 0.5
+        let o2Node = SCNNode(geometry: o2Tube)
+        o2Node.position = SCNVector3(position.x, position.y + 0.4, position.z + 0.4)
+        root.addChildNode(o2Node)
 
-        return Color(
-            red: adjust(r),
-            green: adjust(g),
-            blue: adjust(b)
-        )
+        addLabel(to: root, text: "H₂ / O₂ Separation", at: SCNVector3(position.x - 0.9, position.y + 1.4, position.z))
     }
 }
 
 #Preview {
-    ContentView().environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
+    ContentView()
 }
