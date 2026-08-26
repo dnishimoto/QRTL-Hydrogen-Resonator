@@ -161,83 +161,147 @@ final class MasterMonitor: ObservableObject {
 
 struct ContentView: View {
     @StateObject private var monitor = MasterMonitor()
+    @State private var sheetDetent: PresentationDetent = .height(64)
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ZStack(alignment: .top) {
             QRTLSceneView(monitor: monitor)
                 .ignoresSafeArea()
 
-            VStack(spacing: 12) {
-                readoutPanel
-                controlPanel
-            }
-            .padding()
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-            .padding()
+            topReadoutStrip
+        }
+        // Half-sheet / slide-up control panel. Starts as a small
+        // peeking bar the user can drag up to .medium or .large,
+        // matching a native iOS bottom-sheet interaction.
+        .sheet(isPresented: .constant(true)) {
+            controlSheet
+                .presentationDetents(
+                    [.height(64), .fraction(0.4), .large],
+                    selection: $sheetDetent
+                )
+                .presentationDragIndicator(.visible)
+                .presentationBackgroundInteraction(.enabled)
+                .interactiveDismissDisabled()
         }
     }
 
-    private var readoutPanel: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("QRTL Hydrogen Resonator — Live Data")
-                .font(.headline)
+    // MARK: Top strip — always-visible at-a-glance status
 
-            HStack {
-                readout("Laser", String(format: "%.0f W", monitor.laserPowerW))
-                readout("Circulating", String(format: "%.0f W", monitor.circulatingPowerW))
-                readout("Buildup", String(format: "×%.1f", monitor.buildupFactor))
-                readout("Chamber T", String(format: "%.1f°C", monitor.chamberTemperatureC))
-            }
-            HStack {
-                readout("H₂ Rate", String(format: "%.3f g/hr", monitor.hydrogenRateGPerHr))
-                readout("Energy", String(format: "%.1f kWh/kg", monitor.kWhPerKgH2))
-                readout("Elec. Cost", String(format: "$%.2f/kg", monitor.electricityCostPerKg))
-                readout("Profit", String(format: "$%.2f/kg", monitor.profitPerKg))
-                    .foregroundStyle(monitor.profitPerKg >= 0 ? .green : .red)
-            }
+    private var topReadoutStrip: some View {
+        HStack(spacing: 14) {
+            readout("Laser", String(format: "%.0f W", monitor.laserPowerW))
+            readout("H₂ Rate", String(format: "%.3f g/hr", monitor.hydrogenRateGPerHr))
+            readout("Profit", String(format: "$%.2f/kg", monitor.profitPerKg))
+                .foregroundStyle(monitor.profitPerKg >= 0 ? .green : .red)
+            Spacer()
             if monitor.isNonlinearRegime {
-                Text("⚡ Nonlinear QRTL regime detected (resonant + Ca-40)")
-                    .font(.caption)
+                Label("Nonlinear", systemImage: "bolt.fill")
+                    .font(.caption.bold())
                     .foregroundStyle(.yellow)
-            } else {
-                Text("Baseline linear / thermal regime only")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: Capsule())
+        .padding(.horizontal)
+        .padding(.top, 8)
     }
 
     private func readout(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 1) {
             Text(label).font(.caption2).foregroundStyle(.secondary)
-            Text(value).font(.system(.body, design: .monospaced))
+            Text(value).font(.system(.caption, design: .monospaced)).bold()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var controlPanel: some View {
-        VStack(spacing: 10) {
-            HStack {
-                Text("Laser Power")
-                Slider(value: $monitor.laserPowerW, in: 0...50)
-                Text("\(Int(monitor.laserPowerW)) W").font(.caption).frame(width: 50)
+    // MARK: Slide-up half-sheet content
+
+    private var controlSheet: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                // Grabber-adjacent header stays visible even at the
+                // smallest (.height(64)) detent.
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("QRTL Hydrogen Resonator")
+                            .font(.headline)
+                        Text(monitor.isNonlinearRegime
+                             ? "⚡ Nonlinear QRTL regime (resonant + Ca-40)"
+                             : "Baseline linear / thermal regime")
+                            .font(.caption)
+                            .foregroundStyle(monitor.isNonlinearRegime ? .yellow : .secondary)
+                    }
+                    Spacer()
+                    Button("Reset Run") { monitor.resetRun() }
+                        .buttonStyle(.bordered)
+                }
+
+                readoutGrid
+
+                Divider()
+
+                Text("Controls")
+                    .font(.subheadline.bold())
+
+                VStack(spacing: 14) {
+                    sliderRow("Laser Power", value: $monitor.laserPowerW, range: 0...50,
+                              format: { "\(Int($0)) W" })
+                    sliderRow("Detuning", value: $monitor.detuning, range: -1...1,
+                              format: { String(format: "%.2f", $0) })
+                    sliderRow("Cavity Finesse", value: $monitor.cavityFinesse, range: 20...300,
+                              format: { "\(Int($0))" })
+                    sliderRow("Sell Price", value: $monitor.sellPricePerKg, range: 5...50,
+                              format: { String(format: "$%.0f/kg", $0) })
+                    sliderRow("Other Op. Cost", value: $monitor.otherOperatingCostPerKg, range: 0...25,
+                              format: { String(format: "$%.0f/kg", $0) })
+
+                    HStack(spacing: 20) {
+                        Toggle("Laser On", isOn: $monitor.laserOn)
+                        Toggle("Ca-40 Loaded", isOn: $monitor.ca40Present)
+                    }
+                    .toggleStyle(.switch)
+                }
             }
+            .padding()
+        }
+    }
+
+    private var readoutGrid: some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+            readoutTile("Circulating", String(format: "%.0f W", monitor.circulatingPowerW))
+            readoutTile("Buildup", String(format: "×%.1f", monitor.buildupFactor))
+            readoutTile("Chamber T", String(format: "%.1f°C", monitor.chamberTemperatureC))
+            readoutTile("Energy Use", String(format: "%.1f kWh/kg", monitor.kWhPerKgH2))
+            readoutTile("Elec. Cost", String(format: "$%.2f/kg", monitor.electricityCostPerKg))
+            readoutTile("Total Cost", String(format: "$%.2f/kg", monitor.totalCostPerKg))
+        }
+    }
+
+    private func readoutTile(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+            Text(value).font(.system(.footnote, design: .monospaced)).bold()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(8)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func sliderRow(
+        _ label: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        format: @escaping (Double) -> String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text("Detuning")
-                Slider(value: $monitor.detuning, in: -1...1)
-                Text(String(format: "%.2f", monitor.detuning)).font(.caption).frame(width: 50)
+                Text(label).font(.subheadline)
+                Spacer()
+                Text(format(value.wrappedValue))
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
             }
-            HStack {
-                Text("Finesse")
-                Slider(value: $monitor.cavityFinesse, in: 20...300)
-                Text("\(Int(monitor.cavityFinesse))").font(.caption).frame(width: 50)
-            }
-            HStack {
-                Toggle("Laser On", isOn: $monitor.laserOn)
-                Toggle("Ca-40 Loaded", isOn: $monitor.ca40Present)
-                Button("Reset Run") { monitor.resetRun() }
-                    .buttonStyle(.bordered)
-            }
+            Slider(value: value, in: range)
         }
     }
 }
@@ -617,3 +681,4 @@ enum QRTLSceneBuilder {
 #Preview {
     ContentView()
 }
+
