@@ -175,98 +175,113 @@ struct QRTLLaserState {
 // MARK: - Master Monitor
 
 final class MasterMonitor: ObservableObject {
-    // In MasterMonitor – operator controls
 
-    @Published var laserPowerW: Double = 40.0 {          // was 20.0
+    // ========================================================================
+    // MARK: Operator Controls
+    // ========================================================================
+
+    @Published var laserPowerW: Double = 40.0 {
         didSet { recompute() }
     }
 
-    @Published var cavityFinesse: Double = 220.0 {       // was 180.0
+    @Published var cavityFinesse: Double = 220.0 {
         didSet { recompute() }
     }
 
-    @Published var otherOperatingCostPerKg: Double = 6.0 {  // was 10.0
+    @Published var otherOperatingCostPerKg: Double = 6.0 {
         didSet { recompute() }
     }
- 
-    /// Ca-40 present in interaction region.
+
     @Published var ca40Present: Bool = true {
-        didSet {
-            recompute()
-        }
+        didSet { recompute() }
     }
 
-    /// Master laser switch.
     @Published var laserOn: Bool = true {
-        didSet {
-            recompute()
-        }
+        didSet { recompute() }
     }
 
-    /// Phase offset of laser 2.
     @Published var laser2PhaseOffset: Double = 0.0 {
-        didSet {
-            recompute()
-        }
+        didSet { recompute() }
     }
 
-    /// Phase offset of laser 3.
     @Published var laser3PhaseOffset: Double = 0.0 {
-        didSet {
-            recompute()
-        }
+        didSet { recompute() }
     }
 
-    /// Hydrogen selling price.
     @Published var sellPricePerKg: Double =
         QRTLConstants.defaultHydrogenPricePerKg {
-        didSet {
-            recompute()
-        }
+        didSet { recompute() }
     }
-    @Published var detuning: Double = 0.0 {          // ← here
-          didSet {
-              recompute()
-          }
-      }
 
+    @Published var detuning: Double = 0.0 {
+        didSet { recompute() }
+    }
+
+    // ========================================================================
+    // MARK: QRTL Hypothesis Controls
+    // ========================================================================
+
+    /// Enables the hypothesized QRTL shell-resonance pathway.
+    @Published var qrtlEnabled: Bool = true {
+        didSet { recompute() }
+    }
+
+    /// Fraction of the modeled resonant field coupled into existing QRTL shells.
+    /// This is a hypothesis parameter, not an established material constant.
+    @Published var shellCouplingEfficiency: Double = 0.12 {
+        didSet { recompute() }
+    }
+
+    /// Modeled persistence of coherent shell amplitude before it relaxes.
+    @Published var shellCoherenceLifetimeS: Double = 4.0 {
+        didSet { recompute() }
+    }
+
+    /// Dimensionless amplitude at which the proposed bonded-state transition begins.
+    @Published var shellInstabilityThreshold: Double = 1.0 {
+        didSet { recompute() }
+    }
+
+    /// Converts amplitude beyond threshold into a modeled H₂ release rate.
+    @Published var shellTransitionGainGPerHr: Double = 0.085 {
+        didSet { recompute() }
+    }
 
     // ========================================================================
     // MARK: Laser / Optical Outputs
     // ========================================================================
 
     @Published private(set) var wavelengthMicrometers: Double = 2.94
-
     @Published private(set) var frequencyTHz: Double = 0
-
     @Published private(set) var angularFrequencyRadS: Double = 0
 
     @Published private(set) var totalLaserPowerW: Double = 0
-
     @Published private(set) var circulatingPowerW: Double = 0
-
     @Published private(set) var buildupFactor: Double = 0
 
     @Published private(set) var phaseCoherence: Double = 1.0
-
     @Published private(set) var beamUniformity: Double = 1.0
-
     @Published private(set) var standingWaveStrength: Double = 0
-
     @Published private(set) var resonanceFactor: Double = 0
 
     // ========================================================================
-    // MARK: QRTL Outputs
+    // MARK: QRTL State / Outputs
     // ========================================================================
 
+    /// Dimensionless modeled state of the resonantly driven, pre-existing shell.
+    @Published private(set) var shellResonantAmplitude: Double = 0
+
+    /// How close the modeled shell is to its instability threshold.
+    @Published private(set) var shellThresholdFraction: Double = 0
+
+    /// Modelled rate attributed to the QRTL resonant-shell transition.
+    @Published private(set) var resonantShellTransitionRateGPerHr: Double = 0
+
     @Published private(set) var chamberTemperatureC: Double = 22.0
-
     @Published private(set) var hydrogenRateGPerHr: Double = 0
-
     @Published private(set) var oxygenRateGPerHr: Double = 0
 
     @Published private(set) var isNonlinearRegime: Bool = false
-
     @Published private(set) var visualFieldIntensity: Double = 0
 
     // ========================================================================
@@ -274,27 +289,19 @@ final class MasterMonitor: ObservableObject {
     // ========================================================================
 
     @Published private(set) var hydrogenProducedKg: Double = 0
-
     @Published private(set) var oxygenProducedKg: Double = 0
 
     @Published private(set) var electricityConsumedKWh: Double = 0
-
     @Published private(set) var electricityCost: Double = 0
 
     @Published private(set) var revenue: Double = 0
-
     @Published private(set) var otherOperatingCost: Double = 0
-
     @Published private(set) var totalOperatingCost: Double = 0
-
     @Published private(set) var profit: Double = 0
 
     @Published private(set) var electricityCostPerKg: Double = 0
-
     @Published private(set) var totalCostPerKg: Double = 0
-
     @Published private(set) var revenuePerKg: Double = 0
-
     @Published private(set) var profitPerKg: Double = 0
 
     // ========================================================================
@@ -303,6 +310,9 @@ final class MasterMonitor: ObservableObject {
 
     private var elapsedHours: Double = 0
 
+    /// Accumulates fractional seconds even while recalculating from sliders.
+    private var lastTickDate = Date()
+
     private var timer: AnyCancellable?
 
     // ========================================================================
@@ -310,7 +320,6 @@ final class MasterMonitor: ObservableObject {
     // ========================================================================
 
     init() {
-
         recompute()
 
         timer =
@@ -330,35 +339,100 @@ final class MasterMonitor: ObservableObject {
     // ========================================================================
 
     private func tick() {
+        let now = Date()
+
+        let deltaTimeS =
+            max(
+                0,
+                now.timeIntervalSince(lastTickDate)
+            )
+
+        lastTickDate = now
 
         guard laserOn else {
             recompute()
             return
         }
 
-        elapsedHours += 1.0 / 3600.0
+        elapsedHours += deltaTimeS / 3600.0
+
+        updateShellResonance(
+            deltaTimeS: deltaTimeS
+        )
 
         recompute()
     }
 
     // ========================================================================
-    // MARK: Main Physics / Economic Pipeline
+    // MARK: QRTL Shell State
+    // ========================================================================
+
+    private func updateShellResonance(
+        deltaTimeS: Double
+    ) {
+        guard deltaTimeS > 0 else {
+            return
+        }
+
+        let coherentDrive =
+            laserOn &&
+            qrtlEnabled &&
+            ca40Present
+            ? circulatingPowerW *
+              resonanceFactor *
+              phaseCoherence *
+              beamUniformity *
+              shellCouplingEfficiency
+            : 0
+
+        let normalizedDrive =
+            coherentDrive / 1000.0
+
+        let safeLifetimeS =
+            max(
+                shellCoherenceLifetimeS,
+                0.001
+            )
+
+        let relaxationRate =
+            shellResonantAmplitude /
+            safeLifetimeS
+
+        let amplitudeChange =
+            (
+                normalizedDrive -
+                relaxationRate
+            ) * deltaTimeS
+
+        shellResonantAmplitude =
+            max(
+                0,
+                shellResonantAmplitude +
+                amplitudeChange
+            )
+    }
+
+    // ========================================================================
+    // MARK: Main Optical / QRTL / Economic Pipeline
     // ========================================================================
 
     private func recompute() {
 
-        // ====================================================================
-        // STEP 1 — 2.94 µm LASER PHYSICS
-        // ====================================================================
+        // --------------------------------------------------------------------
+        // 1. Laser wavelength and frequency
+        // --------------------------------------------------------------------
 
         let wavelength =
             QRTLConstants.wavelengthMeters
 
         let frequency =
-            QRTLConstants.speedOfLight / wavelength
+            QRTLConstants.speedOfLight /
+            wavelength
 
         let angularFrequency =
-            2.0 * Double.pi * frequency
+            2.0 *
+            Double.pi *
+            frequency
 
         wavelengthMicrometers =
             wavelength * 1.0e6
@@ -369,9 +443,9 @@ final class MasterMonitor: ObservableObject {
         angularFrequencyRadS =
             angularFrequency
 
-        // ====================================================================
-        // STEP 2 — THREE LASERS
-        // ====================================================================
+        // --------------------------------------------------------------------
+        // 2. Three synchronized laser sources
+        // --------------------------------------------------------------------
 
         let laser1 =
             QRTLLaserState(
@@ -400,63 +474,68 @@ final class MasterMonitor: ObservableObject {
             laser3
         ]
 
-        // ====================================================================
-        // STEP 3 — TOTAL ELECTRICAL LASER POWER
-        // ====================================================================
-
         totalLaserPowerW =
             lasers
-                .filter { $0.enabled }
-                .reduce(0) {
-                    $0 + $1.powerW
-                }
+            .filter { $0.enabled }
+            .reduce(0) {
+                $0 + $1.powerW
+            }
 
-        // ====================================================================
-        // STEP 4 — PHASE COHERENCE
-        // ====================================================================
+        // --------------------------------------------------------------------
+        // 3. Pairwise phase relationship
+        // --------------------------------------------------------------------
 
-        let phase2 =
-            laser2PhaseOffset
-
-        let phase3 =
-            laser3PhaseOffset
-
-        let phaseError2 =
-            abs(normalizePhase(phase2))
-
-        let phaseError3 =
-            abs(normalizePhase(phase3))
+        let phaseError12 =
+            abs(
+                normalizePhase(
+                    laser2PhaseOffset
+                )
+            )
 
         let phaseError13 =
-            abs(normalizePhase(phase3))
+            abs(
+                normalizePhase(
+                    laser3PhaseOffset
+                )
+            )
+
+        let phaseError23 =
+            abs(
+                normalizePhase(
+                    laser3PhaseOffset -
+                    laser2PhaseOffset
+                )
+            )
 
         let averagePhaseError =
-            (phaseError2 +
-             phaseError3 +
-             phaseError13) / 3.0
+            (
+                phaseError12 +
+                phaseError13 +
+                phaseError23
+            ) / 3.0
 
         phaseCoherence =
             max(
                 0,
-                cos(averagePhaseError)
+                cos(
+                    averagePhaseError
+                )
             )
-
-        // ====================================================================
-        // STEP 5 — BEAM UNIFORMITY
-        // ====================================================================
 
         beamUniformity =
             max(
                 0,
                 min(
                     1,
-                    1.0 - averagePhaseError / Double.pi
+                    1.0 -
+                    averagePhaseError /
+                    Double.pi
                 )
             )
 
-        // ====================================================================
-        // STEP 6 — CAVITY RESONANCE
-        // ====================================================================
+        // --------------------------------------------------------------------
+        // 4. Cavity response
+        // --------------------------------------------------------------------
 
         let resonanceWidth =
             max(
@@ -469,14 +548,11 @@ final class MasterMonitor: ObservableObject {
             (
                 1.0 +
                 pow(
-                    detuning / resonanceWidth,
+                    detuning /
+                    resonanceWidth,
                     2.0
                 )
             )
-
-        // ====================================================================
-        // STEP 7 — CAVITY BUILDUP
-        // ====================================================================
 
         buildupFactor =
             laserOn
@@ -485,19 +561,11 @@ final class MasterMonitor: ObservableObject {
               resonanceFactor
             : 0
 
-        // ====================================================================
-        // STEP 8 — CIRCULATING OPTICAL POWER
-        // ====================================================================
-
         circulatingPowerW =
             totalLaserPowerW *
             buildupFactor *
             phaseCoherence *
             beamUniformity
-
-        // ====================================================================
-        // STEP 9 — STANDING-WAVE STRENGTH
-        // ====================================================================
 
         standingWaveStrength =
             laserOn
@@ -506,84 +574,84 @@ final class MasterMonitor: ObservableObject {
               beamUniformity
             : 0
 
-        // ====================================================================
-        // STEP 10 — WATER / CHAMBER HEATING
-        // ====================================================================
+        // --------------------------------------------------------------------
+        // 5. QRTL shell threshold behavior
+        // --------------------------------------------------------------------
+
+        let safeThreshold =
+            max(
+                shellInstabilityThreshold,
+                0.0001
+            )
+
+        shellThresholdFraction =
+            min(
+                shellResonantAmplitude /
+                safeThreshold,
+                2.0
+            )
+
+        let shellTransitionActive =
+            qrtlEnabled &&
+            ca40Present &&
+            laserOn &&
+            resonanceFactor > 0.90 &&
+            phaseCoherence > 0.90 &&
+            shellResonantAmplitude >=
+            safeThreshold
+
+        isNonlinearRegime =
+            shellTransitionActive
+
+        if shellTransitionActive {
+
+            let excessAmplitude =
+                (
+                    shellResonantAmplitude -
+                    safeThreshold
+                ) / safeThreshold
+
+            resonantShellTransitionRateGPerHr =
+                shellTransitionGainGPerHr *
+                pow(
+                    max(
+                        0,
+                        excessAmplitude
+                    ),
+                    2.15
+                )
+
+        } else {
+
+            resonantShellTransitionRateGPerHr =
+                0
+        }
+
+        // --------------------------------------------------------------------
+        // 6. Thermal response and modeled gas output
+        // --------------------------------------------------------------------
 
         chamberTemperatureC =
             22.0 +
             min(
-                circulatingPowerW * 0.15,
+                circulatingPowerW *
+                0.15,
                 60.0
             )
 
-        // ====================================================================
-        // STEP 11 — BASELINE RESPONSE
-        // ====================================================================
-
+        // Keep this only if you intentionally want a non-QRTL baseline.
+        // Set it to zero when testing a pure threshold-only QRTL thesis.
         let baselineRateGPerHr =
-            circulatingPowerW * 0.002
-
-        // ====================================================================
-        // STEP 12 — STANDING-WAVE ENERGY-SHELL DISRUPTION
-        // ====================================================================
-        //
-        // The proposed nonlinear channel models coherent standing-wave
-        // antinodes at 2.94 µm coupling into the vibrational energy shells
-        // of H₂O and driving them past the dissociation threshold.
-        //
-        // Enabled only when:
-        //   • Ca-40 is present
-        //   • cavity is sufficiently resonant
-        //   • coherent standing wave is strong
-        //   • circulating field exceeds the modeled threshold
-        //
-        let threshold = 350.0
-        let onResonance = resonanceFactor > 0.90
-
-        var energyShellDisruptionRateGPerHr = 0.0
-        isNonlinearRegime = false
-
-        if ca40Present &&
-            onResonance &&
-            standingWaveStrength > 0.90 &&
-            circulatingPowerW > threshold {
-
-            let excess =
-                (circulatingPowerW - threshold) /
-                threshold
-
-            // Raised coefficient for net-positive operation when locked
-            energyShellDisruptionRateGPerHr =
-                0.085 *
-                pow(
-                    excess,
-                    2.15
-                )
-
-            isNonlinearRegime = true
-        }
-
-        let qrtlRateGPerHr = energyShellDisruptionRateGPerHr
-
-        // ====================================================================
-        // STEP 13 — HYDROGEN / OXYGEN RELEASE
-        // ====================================================================
-        // Baseline thermal/linear response + standing-wave energy-shell disruption
+            circulatingPowerW *
+            0.002
 
         hydrogenRateGPerHr =
             baselineRateGPerHr +
-            qrtlRateGPerHr
+            resonantShellTransitionRateGPerHr
 
-        //
-        // Water stoichiometry:
-        //
-        //     2 H₂O → 2 H₂ + O₂
-        //
-        // Mass ratio H₂ : O₂ = 1 : 8.
-        //
         oxygenRateGPerHr =
-            hydrogenRateGPerHr * 8.0
+            hydrogenRateGPerHr *
+            8.0
 
         visualFieldIntensity =
             min(
@@ -596,9 +664,9 @@ final class MasterMonitor: ObservableObject {
                 1.0
             )
 
-        // ====================================================================
-        // STEP 14 — ACCUMULATED HYDROGEN
-        // ====================================================================
+        // --------------------------------------------------------------------
+        // 7. Production and economics
+        // --------------------------------------------------------------------
 
         hydrogenProducedKg =
             hydrogenRateGPerHr *
@@ -610,58 +678,30 @@ final class MasterMonitor: ObservableObject {
             elapsedHours /
             1000.0
 
-        // ====================================================================
-        // STEP 15 — ELECTRICITY CONSUMPTION
-        // ====================================================================
-
         electricityConsumedKWh =
             totalLaserPowerW *
             elapsedHours /
             1000.0
 
-        // ====================================================================
-        // STEP 16 — ELECTRICITY COST
-        // ====================================================================
-
         electricityCost =
             electricityConsumedKWh *
             QRTLConstants.electricityPricePerKWh
-
-        // ====================================================================
-        // STEP 17 — HYDROGEN REVENUE
-        // ====================================================================
 
         revenue =
             hydrogenProducedKg *
             sellPricePerKg
 
-        // ====================================================================
-        // STEP 18 — OTHER OPERATING COST
-        // ====================================================================
-
         otherOperatingCost =
             hydrogenProducedKg *
             otherOperatingCostPerKg
-
-        // ====================================================================
-        // STEP 19 — TOTAL OPERATING COST
-        // ====================================================================
 
         totalOperatingCost =
             electricityCost +
             otherOperatingCost
 
-        // ====================================================================
-        // STEP 20 — PROFIT
-        // ====================================================================
-
         profit =
             revenue -
             totalOperatingCost
-
-        // ====================================================================
-        // STEP 21 — PER-KILOGRAM ECONOMICS
-        // ====================================================================
 
         if hydrogenProducedKg > 0.000001 {
 
@@ -689,6 +729,7 @@ final class MasterMonitor: ObservableObject {
             profitPerKg = 0
         }
     }
+
     // ========================================================================
     // MARK: Phase Normalization
     // ========================================================================
@@ -715,8 +756,12 @@ final class MasterMonitor: ObservableObject {
     // ========================================================================
 
     func resetRun() {
-
         elapsedHours = 0
+        shellResonantAmplitude = 0
+        shellThresholdFraction = 0
+        resonantShellTransitionRateGPerHr = 0
+        isNonlinearRegime = false
+        lastTickDate = Date()
 
         recompute()
     }
