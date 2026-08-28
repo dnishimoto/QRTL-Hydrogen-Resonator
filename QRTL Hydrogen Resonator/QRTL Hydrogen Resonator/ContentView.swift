@@ -367,7 +367,7 @@ final class MasterMonitor: ObservableObject {
     // MARK: QRTL Shell State
     // ========================================================================
 
-    private func updateShellResonance(
+    func updateShellResonance(
         deltaTimeS: Double
     ) {
         guard deltaTimeS > 0 else {
@@ -755,6 +755,17 @@ final class MasterMonitor: ObservableObject {
     // MARK: Reset
     // ========================================================================
 
+#if DEBUG
+    func advanceSimulationForTesting(deltaTimeS: Double) {
+        guard deltaTimeS > 0 else { return }
+        if laserOn {
+            elapsedHours += deltaTimeS / 3600.0
+        }
+        updateShellResonance(deltaTimeS: deltaTimeS)
+        recompute()
+    }
+#endif
+
     func resetRun() {
         elapsedHours = 0
         shellResonantAmplitude = 0
@@ -770,44 +781,45 @@ final class MasterMonitor: ObservableObject {
 // MARK: - ContentView
 
 struct ContentView: View {
+    @StateObject private var monitor = MasterMonitor()
 
-    @StateObject private var monitor =
-        MasterMonitor()
-
-    @State private var sheetDetent:
-        PresentationDetent = .height(64)
+    @State private var sheetDetent: PresentationDetent = .height(64)
+    @State private var showingAbout = false
 
     var body: some View {
+        NavigationStack {
+            ZStack(alignment: .top) {
+                QRTLSceneView(monitor: monitor)
+                    .ignoresSafeArea()
 
-        ZStack(alignment: .top) {
-
-            QRTLSceneView(
-                monitor: monitor
-            )
-            .ignoresSafeArea()
-
-            topReadoutStrip
-        }
-        .sheet(
-            isPresented: .constant(true)
-        ) {
-
-            controlSheet
-                .presentationDetents(
-                    [
-                        .height(64),
-                        .fraction(0.45),
-                        .large
-                    ],
-                    selection: $sheetDetent
-                )
-                .presentationDragIndicator(
-                    .visible
-                )
-                .presentationBackgroundInteraction(
-                    .enabled
-                )
-                .interactiveDismissDisabled()
+                topReadoutStrip
+            }
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showingAbout = true
+                    } label: {
+                        Label("About", systemImage: "info.circle")
+                    }
+                }
+            }
+            .sheet(isPresented: .constant(true)) {
+                controlSheet
+                    .presentationDetents(
+                        [
+                            .height(64),
+                            .fraction(0.45),
+                            .large
+                        ],
+                        selection: $sheetDetent
+                    )
+                    .presentationDragIndicator(.visible)
+                    .presentationBackgroundInteraction(.enabled)
+                    .interactiveDismissDisabled()
+                    .sheet(isPresented: $showingAbout) {
+                        AboutView()
+                    }
+            }
         }
     }
 
@@ -855,22 +867,6 @@ struct ContentView: View {
                 ? .green
                 : .red
             )
-
-            Spacer()
-
-            if monitor.isNonlinearRegime {
-
-                Label(
-                    "QRTL Standing Wave",
-                    systemImage: "waveform.path.ecg"
-                )
-                .font(
-                    .caption.bold()
-                )
-                .foregroundStyle(
-                    .yellow
-                )
-            }
         }
         .padding(
             .horizontal,
@@ -1004,6 +1000,8 @@ struct ContentView: View {
                         }
                     )
 
+                    InfoCard(text: "Like turning up a flashlight to make it shine brighter.")
+
                     sliderRow(
                         "Cavity Detuning",
                         value: $monitor.detuning,
@@ -1015,6 +1013,8 @@ struct ContentView: View {
                             )
                         }
                     )
+
+                    InfoCard(text: "Like tuning a radio—closer to the right frequency, the clearer the sound.")
 
                     sliderRow(
                         "Cavity Finesse",
@@ -1028,6 +1028,8 @@ struct ContentView: View {
                         }
                     )
 
+                    InfoCard(text: "Like how sharply a bell rings—higher finesse is a purer, longer-lasting note.")
+
                     sliderRow(
                         "Laser 2 Phase",
                         value: $monitor.laser2PhaseOffset,
@@ -1040,6 +1042,8 @@ struct ContentView: View {
                         }
                     )
 
+                    InfoCard(text: "Like having two jump-ropers swing ropes in sync—phase sets their timing.")
+
                     sliderRow(
                         "Laser 3 Phase",
                         value: $monitor.laser3PhaseOffset,
@@ -1051,6 +1055,8 @@ struct ContentView: View {
                             )
                         }
                     )
+
+                    InfoCard(text: "Like a third jump-roper joining the rhythm.")
 
                     HStack(
                         spacing: 20
@@ -1069,6 +1075,8 @@ struct ContentView: View {
                     .toggleStyle(
                         .switch
                     )
+
+                    InfoCard(text: "'Lasers On' turns all flashlights on or off. 'Ca-40 Loaded' is like adding a special ingredient to the mix.")
                 }
 
                 Divider()
@@ -2014,11 +2022,12 @@ enum QRTLSceneBuilder {
                 geometry: textGeo
             )
 
+        // Changed scale from 0.05 to 0.025 as per instructions
         node.scale =
             SCNVector3(
-                0.05,
-                0.05,
-                0.05
+                0.025,
+                0.025,
+                0.025
             )
 
         node.position =
@@ -2818,9 +2827,26 @@ enum QRTLSceneBuilder {
     }
 }
 
+// MARK: - InfoCard View
+
+struct InfoCard: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.footnote)
+            .foregroundColor(.secondary)
+            .padding(8)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(.systemGray6))
+            )
+            .padding(.horizontal, 4)
+    }
+}
+
 // MARK: - Preview
 
 #Preview {
     ContentView()
 }
-
